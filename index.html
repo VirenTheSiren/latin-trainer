@@ -266,7 +266,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // Clear any stale session data from old versions of the site
 (function() {
-  const currentVersion = '2.0';
+  const currentVersion = '4.0';
   if (localStorage.getItem('app_version') !== currentVersion) {
     const keys = Object.keys(localStorage);
     keys.forEach(k => { if (k !== 'app_version') localStorage.removeItem(k); });

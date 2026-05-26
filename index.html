@@ -221,7 +221,7 @@ tr:hover td{background:#1a1a2e60}
           <div class="q-dir" id="q-dir"></div>
           <div class="hint-box" id="hint-box"></div>
           <div class="answer-row">
-            <input type="text" id="answer-input" placeholder="Type your answer here..." onkeydown="if(event.key==='Enter')submitAnswer()"/>
+            <input type="text" id="answer-input" placeholder="Type your answer here..." onkeydown="if(event.key==='Enter'){ if(inFeedbackState) nextQuestion(); else submitAnswer(); }"/>
           </div>
           <div class="btn-row">
             <button class="btn-sm btn-submit" onclick="submitAnswer()">Submit</button>
@@ -323,6 +323,9 @@ let currentUser = null, currentProfile = null;
 let vocab = [], selectedChapters = [], currentQ = null;
 let hintUsed = false, totalScore = 0, totalPossible = 0, streak = 0;
 let wordStats = {};
+let sessionTracking = {}; // per-direction accuracy: {vocabId_L2E: {attempts, score}}
+let inFeedbackState = false;
+let feedbackTimer = null;
 let lbPeriod = 'week', lbScope = 'class', teacherClassFilter = 'all';
 
 // ── AUTH ──────────────────────────────────────────────────
@@ -696,31 +699,99 @@ async function updateStreak(correct) {
 }
 
 // ── ADAPTIVE ENGINE ───────────────────────────────────────
-function pickNextWord() {
-  const pool = vocab.filter(v=>selectedChapters.includes(v.chapter));
-  if (!pool.length) return null;
-  const weighted = [];
-  pool.forEach(v => {
-    const acc = wordStats[v.id]?.accuracy ?? 50;
-    const w = Math.max(1, Math.round((100-acc)/10));
-    for (let i=0;i<w;i++) weighted.push(v);
-  });
-  return weighted[Math.floor(Math.random()*weighted.length)];
+function skey(vocabId, dir) {
+  return vocabId + '_' + (dir === 'latin_to_english' ? 'L2E' : 'E2L');
 }
+
+function pickNext() {
+  const pool = vocab.filter(v => selectedChapters.includes(v.chapter));
+  if (!pool.length) return null;
+
+  // Calculate direction averages for bias detection
+  let l2eSum = 0, l2eN = 0, e2lSum = 0, e2lN = 0;
+  pool.forEach(v => {
+    ['latin_to_english','english_to_latin'].forEach(dir => {
+      const st = sessionTracking[skey(v.id, dir)];
+      if (st && st.attempts > 0) {
+        const a = st.score / st.attempts;
+        if (dir === 'latin_to_english') { l2eSum += a; l2eN++; }
+        else { e2lSum += a; e2lN++; }
+      }
+    });
+  });
+  const avgL2E = l2eN > 0 ? l2eSum / l2eN : 0.5;
+  const avgE2L = e2lN > 0 ? e2lSum / e2lN : 0.5;
+
+  // Build weighted roulette pool
+  let totalWeight = 0;
+  const candidates = [];
+  pool.forEach(v => {
+    ['latin_to_english','english_to_latin'].forEach(dir => {
+      const st = sessionTracking[skey(v.id, dir)] || { attempts:0, score:0 };
+      const dbAcc = (wordStats[v.id]?.accuracy ?? 50) / 100;
+      const sessionAcc = st.attempts > 0 ? st.score / st.attempts : dbAcc;
+      const blend = Math.min(st.attempts / 5, 1);
+      const acc = sessionAcc * blend + dbAcc * (1 - blend);
+      let w = 1.0 + (1.0 - acc) * 4.0;
+      // Boost weaker direction
+      if (dir === 'latin_to_english' && avgL2E < avgE2L - 0.08) w *= 1.6;
+      if (dir === 'english_to_latin' && avgE2L < avgL2E - 0.08) w *= 1.6;
+      candidates.push({ word: v, direction: dir, weight: w, acc });
+      totalWeight += w;
+    });
+  });
+
+  // Roulette wheel selection
+  let target = Math.random() * totalWeight, running = 0;
+  for (const c of candidates) {
+    running += c.weight;
+    if (target <= running) return c;
+  }
+  return candidates[0];
+}
+
 function updateAdaptiveMsg() {
-  const pool = vocab.filter(v=>selectedChapters.includes(v.chapter));
-  const weak = pool.filter(v => wordStats[v.id] && wordStats[v.id].accuracy < 50);
-  document.getElementById('adaptive-msg').innerHTML = '<b>Adaptive Engine:</b> ' +
-    (weak.length > 0
-      ? `Focusing on <b>${weak.length} weak word${weak.length>1?'s':''}</b> — keep going to improve.`
-      : `Good balance across <b>Chapters ${selectedChapters.join(', ')}</b>. Keep it up!`);
+  const pool = vocab.filter(v => selectedChapters.includes(v.chapter));
+  // Find weakest word from session data
+  let weakWord = null, lowestAcc = 1.0;
+  pool.forEach(v => {
+    ['latin_to_english','english_to_latin'].forEach(dir => {
+      const st = sessionTracking[skey(v.id, dir)];
+      if (st && st.attempts > 0) {
+        const a = st.score / st.attempts;
+        if (a < lowestAcc) { lowestAcc = a; weakWord = v; }
+      }
+    });
+  });
+  // Direction bias
+  let l2eSum = 0, l2eN = 0, e2lSum = 0, e2lN = 0;
+  pool.forEach(v => {
+    ['latin_to_english','english_to_latin'].forEach(dir => {
+      const st = sessionTracking[skey(v.id, dir)];
+      if (st && st.attempts > 0) {
+        if (dir === 'latin_to_english') { l2eSum += st.score/st.attempts; l2eN++; }
+        else { e2lSum += st.score/st.attempts; e2lN++; }
+      }
+    });
+  });
+  const avgL2E = l2eN > 0 ? l2eSum/l2eN : 0.5;
+  const avgE2L = e2lN > 0 ? e2lSum/e2lN : 0.5;
+  let bias = 'Balanced across both directions';
+  if (avgL2E < avgE2L - 0.12) bias = 'Focusing on Latin → English (your weaker direction)';
+  else if (avgE2L < avgL2E - 0.12) bias = 'Focusing on English → Latin (your weaker direction)';
+  let msg = `<b>Adaptive Engine:</b> ${bias}.`;
+  if (weakWord) msg += ` Weak spot: <b>${weakWord.latin_word}</b> (${Math.round(lowestAcc*100)}% accuracy).`;
+  document.getElementById('adaptive-msg').innerHTML = msg;
 }
 
 // ── QUESTION ──────────────────────────────────────────────
 function nextQuestion() {
-  const word = pickNextWord();
-  if (!word) { document.getElementById('question-area').innerHTML='<p style="color:#888">No vocabulary found.</p>'; return; }
-  const direction = Math.random() < 0.65 ? 'latin_to_english' : 'english_to_latin';
+  if (feedbackTimer) { clearTimeout(feedbackTimer); feedbackTimer = null; }
+  inFeedbackState = false;
+  document.getElementById('answer-input').disabled = false; // re-enable for new question
+  const picked = pickNext();
+  if (!picked) { document.getElementById('question-area').innerHTML='<p style="color:#888">No vocabulary found.</p>'; return; }
+  const { word, direction } = picked;
   currentQ = { word, direction, hintUsed: false };
   hintUsed = false;
   document.getElementById('hint-box').style.display = 'none';
@@ -746,13 +817,18 @@ function showHint() {
   box.style.display = 'block';
 }
 function skipQuestion() {
+  if (feedbackTimer) { clearTimeout(feedbackTimer); feedbackTimer = null; }
+  inFeedbackState = false;
+  document.getElementById('answer-input').disabled = true; // lock during skip feedback
   recordAttempt(currentQ.word, currentQ.direction, '', 0, 1, false, true);
   showFeedback('skip', 0, 1);
   updateStreak(false);
-  setTimeout(nextQuestion, 1800);
+  feedbackTimer = setTimeout(nextQuestion, 1800);
 }
 async function submitAnswer() {
-  const raw = document.getElementById('answer-input').value.trim();
+  const inp = document.getElementById('answer-input');
+  if (inp.disabled) { nextQuestion(); return; } // in feedback state — advance
+  const raw = inp.value.trim();
   if (!raw) return;
   const { marks, possible, type } = gradeAnswer(raw, currentQ.word, currentQ.direction, currentQ.hintUsed);
   totalScore += marks; totalPossible += possible;
@@ -760,30 +836,43 @@ async function submitAnswer() {
   document.getElementById('stat-possible').textContent = totalPossible.toFixed(1);
   document.getElementById('stat-pct').textContent = (totalPossible>0?Math.round((totalScore/totalPossible)*100):0)+'%';
   updateStreak(marks > 0);
-  await recordAttempt(currentQ.word, currentQ.direction, raw, marks, possible, currentQ.hintUsed, false);
+  // Update session tracking
+  const sk = skey(currentQ.word.id, currentQ.direction);
+  if (!sessionTracking[sk]) sessionTracking[sk] = { attempts:0, score:0 };
+  sessionTracking[sk].attempts++;
+  sessionTracking[sk].score += possible > 0 ? marks/possible : 0;
+  recordAttempt(currentQ.word, currentQ.direction, raw, marks, possible, currentQ.hintUsed, false); // fire and forget — don't block UI
   showFeedback(type, marks, possible);
-  setTimeout(nextQuestion, 2800);
+  inp.disabled = true; // lock input during feedback
+  feedbackTimer = setTimeout(nextQuestion, 2800);
 }
 
 // ── GRADING ───────────────────────────────────────────────
-function normalise(s){ return s.toLowerCase().replace(/[^a-z\s]/g,'').replace(/\b(a|an|to|i|the)\b/g,'').replace(/\s+/g,' ').trim(); }
-function fuzzy(a,b){ a=normalise(a);b=normalise(b);
-  if(a===b) return true;
-  if(b.split(' ').some(w=>w.length>3&&a.includes(w))) return true;
-  if(a.split(' ').some(w=>w.length>3&&b.includes(w))) return true;
-  return false;
+function sanitize(s) {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip macrons/diacritics
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, '')
+    .replace(/\b(a|an|the|to|i|is|does|am|person|singular|plural|on|ones|own)\b/g, '')
+    .replace(/\s+/g, ' ').trim();
 }
 function gradeAnswer(raw, word, direction, hintUsed) {
   const max = hintUsed ? 0.5 : 1;
+  const cleanInput = sanitize(raw);
   if (direction === 'latin_to_english') {
-    const matched = word.english_meanings.filter(a=>fuzzy(raw,a));
-    if (matched.length === word.english_meanings.length) return {marks:max,possible:max,type:'correct'};
-    if (matched.length > 0) return {marks:max*0.5,possible:max,type:'partial'};
-    return {marks:0,possible:max,type:'wrong'};
+    const targets = word.english_meanings.map(t => sanitize(t)).filter(t => t.length > 0);
+    const total = targets.length;
+    let matches = 0;
+    targets.forEach(t => {
+      if (cleanInput === t || cleanInput.includes(t) || (t.includes(cleanInput) && cleanInput.length >= 3)) matches++;
+    });
+    // All correct = 1 mark, majority correct = 0.5 marks, minority/none = 0
+    if (matches === total) return {marks:max, possible:max, type:'correct'};
+    if (matches >= Math.ceil(total / 2)) return {marks:max*0.5, possible:max, type:'partial'};
+    return {marks:0, possible:max, type:'wrong'};
   } else {
-    return fuzzy(raw,word.latin_word)
-      ? {marks:max,possible:max,type:'correct'}
-      : {marks:0,possible:max,type:'wrong'};
+    const t = sanitize(word.latin_word);
+    const ok = t && (cleanInput === t || cleanInput.includes(t) || (t.includes(cleanInput) && cleanInput.length >= 3));
+    return ok ? {marks:max,possible:max,type:'correct'} : {marks:0,possible:max,type:'wrong'};
   }
 }
 function showFeedback(type, marks, possible) {
@@ -803,19 +892,44 @@ function showFeedback(type, marks, possible) {
 }
 
 // ── RECORD ATTEMPT ────────────────────────────────────────
+// Queue for offline/slow connection resilience
+const attemptQueue = [];
+let syncInProgress = false;
+
+async function flushQueue() {
+  if (syncInProgress || attemptQueue.length === 0) return;
+  syncInProgress = true;
+  while (attemptQueue.length > 0) {
+    const item = attemptQueue[0];
+    try {
+      await sb.from('attempts').insert(item.attempt);
+      await sb.from('word_performance').upsert(item.perf);
+      attemptQueue.shift(); // only remove if successful
+    } catch(e) {
+      console.error('Sync failed, will retry:', e);
+      break; // stop and retry later
+    }
+  }
+  syncInProgress = false;
+}
+
 async function recordAttempt(word, direction, answer, marks, possible, hintUsed, skipped) {
   try {
-    await sb.from('attempts').insert({
-      student_id:currentUser.id, vocab_id:word.id, direction,
-      student_answer:answer, marks_awarded:marks, marks_possible:possible,
-      hint_used:hintUsed, skipped, attempted_at:new Date().toISOString()
-    });
     const ex = wordStats[word.id];
     const na = (ex?.total_attempts||0)+1, nc = (ex?.total_correct||0)+marks;
     const perf = { student_id:currentUser.id, vocab_id:word.id, total_attempts:na,
       total_correct:nc, accuracy:Math.round((nc/na)*100), times_seen:(ex?.times_seen||0)+1, last_seen:new Date().toISOString() };
-    await sb.from('word_performance').upsert(perf);
+    // Update local stats immediately (no waiting for DB)
     wordStats[word.id] = perf;
+    // Queue the DB write
+    attemptQueue.push({
+      attempt: { student_id:currentUser.id, vocab_id:word.id, direction,
+        student_answer:answer, marks_awarded:marks, marks_possible:possible,
+        hint_used:hintUsed, skipped, attempted_at:new Date().toISOString() },
+      perf
+    });
+    // Flush in background
+    flushQueue();
   } catch(e){ console.error(e); }
 }
 

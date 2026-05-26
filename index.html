@@ -264,24 +264,16 @@ tr:hover td{background:#1a1a2e60}
 const SUPABASE_URL = 'https://lraszpathhkfkvibudcw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxyYXN6cGF0aGhrZmt2aWJ1ZGN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0Njg5ODQsImV4cCI6MjA5NTA0NDk4NH0.ngyTPlnI86alTCPpH9TmOxXUXm5cTQwY0PCJ3Q9k4x8';
 
-// Clear any stale session data from old versions of the site
-(function() {
-  const currentVersion = '5.0';
-  if (localStorage.getItem('app_version') !== currentVersion) {
-    // Full wipe of all storage
-    localStorage.clear();
-    sessionStorage.clear();
-    // Wipe all cookies for this domain
-    document.cookie.split(';').forEach(c => {
-      document.cookie = c.trim().split('=')[0] + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/';
-    });
-    localStorage.setItem('app_version', currentVersion);
-    // Force reload after wipe so Supabase starts completely fresh
-    window.location.reload();
+// Use sessionStorage so sessions never persist stale across deploys.
+// Users log in once per browser session (tab). Closes cleanly on tab close.
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    storage: window.sessionStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false
   }
-})();
-
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+});
 
 // ── CLASS SYSTEM ──────────────────────────────────────────
 const CLASS_META = {
@@ -586,7 +578,8 @@ async function loadScoreboard() {
     }
   }
 
-  const { data: students } = await q;
+  const { data: students, error: sErr } = await q;
+  if (sErr) { wrap.innerHTML = '<p style="color:#f88;padding:10px">Error loading students: ' + sErr.message + '</p>'; return; }
   if (!students?.length) {
     wrap.innerHTML = '<p style="color:#888;padding:10px">No students found in this group yet.</p>';
     return;
@@ -595,7 +588,8 @@ async function loadScoreboard() {
   const ids = students.map(s => s.id);
   let aq = sb.from('attempts').select('student_id,marks_awarded,marks_possible').in('student_id', ids);
   if (since) aq = aq.gte('attempted_at', since);
-  const { data: atts } = await aq;
+  const { data: atts, error: aErr } = await aq;
+  if (aErr) { wrap.innerHTML = '<p style="color:#f88;padding:10px">Error loading scores: ' + aErr.message + '</p>'; return; }
 
   // Aggregate per student
   const smap = {};

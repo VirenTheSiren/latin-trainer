@@ -362,29 +362,57 @@ async function doSignup() {
 async function doLogout() { await sb.auth.signOut(); location.reload(); }
 
 // ── SESSION ───────────────────────────────────────────────
+function showLoginError(msg) {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  const el = document.getElementById('auth-msg');
+  el.innerHTML = msg + '<br><br><button onclick="hardReset()" style="margin-top:8px;padding:8px 16px;background:#c9a96e;color:#0f0f1a;border:none;border-radius:6px;cursor:pointer;font-weight:700">Clear Cache &amp; Try Again</button>';
+  el.className = 'msg error';
+  el.classList.remove('hidden');
+}
+function hardReset() {
+  localStorage.clear(); sessionStorage.clear(); location.reload();
+}
+
 sb.auth.onAuthStateChange(async (event, session) => {
   if (session) {
     try {
       currentUser = session.user;
-      await loadProfile();
-      // If profile failed to load, sign out cleanly and show login
-      if (!currentProfile) {
-        await sb.auth.signOut();
-        localStorage.clear();
-        sessionStorage.clear();
-        location.reload();
-        return;
+
+      // Load profile
+      const { data: prof, error: profErr } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+      if (profErr) { showLoginError('Profile error: ' + profErr.message); await sb.auth.signOut(); return; }
+
+      // If no profile exists, create one on the fly
+      if (!prof) {
+        const meta = currentUser.user_metadata || {};
+        const { data: np, error: ne } = await sb.from('profiles').insert({
+          id: currentUser.id, email: currentUser.email,
+          full_name: meta.full_name || currentUser.email,
+          role: meta.role || 'student',
+          class_code: meta.class_code || null,
+          year_group: meta.year_group || null
+        }).select().maybeSingle();
+        if (ne) { showLoginError('Could not create profile: ' + ne.message); await sb.auth.signOut(); return; }
+        currentProfile = np;
+      } else {
+        currentProfile = prof;
       }
-      await loadVocab();
-      await loadWordStats();
+
+      // Load vocab
+      const { data: vdata, error: vErr } = await sb.from('vocabulary').select('*').order('chapter');
+      if (vErr) { showLoginError('Vocabulary error: ' + vErr.message); return; }
+      vocab = vdata || [];
+
+      // Load word stats
+      const { data: wdata } = await sb.from('word_performance').select('*').eq('student_id', currentUser.id);
+      if (wdata) wdata.forEach(r => { wordStats[r.vocab_id] = r; });
+
       showApp();
     } catch(err) {
       console.error('App load error:', err);
-      // Auto-recover: sign out and reload rather than silently failing
+      showLoginError('Loading error: ' + (err.message || 'Unknown — please use Clear Cache button below'));
       try { await sb.auth.signOut(); } catch(e) {}
-      localStorage.clear();
-      sessionStorage.clear();
-      location.reload();
     }
   }
 });

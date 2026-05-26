@@ -264,13 +264,11 @@ tr:hover td{background:#1a1a2e60}
 const SUPABASE_URL = 'https://lraszpathhkfkvibudcw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxyYXN6cGF0aGhrZmt2aWJ1ZGN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0Njg5ODQsImV4cCI6MjA5NTA0NDk4NH0.ngyTPlnI86alTCPpH9TmOxXUXm5cTQwY0PCJ3Q9k4x8';
 
-// Use sessionStorage so sessions never persist stale across deploys.
-// Users log in once per browser session (tab). Closes cleanly on tab close.
+// No session persistence — users log in each visit, eliminating all stale session bugs.
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: window.sessionStorage,
-    persistSession: true,
-    autoRefreshToken: true,
+    persistSession: false,
+    autoRefreshToken: false,
     detectSessionInUrl: false
   }
 });

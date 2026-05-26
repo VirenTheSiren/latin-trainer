@@ -221,7 +221,7 @@ tr:hover td{background:#1a1a2e60}
           <div class="q-dir" id="q-dir"></div>
           <div class="hint-box" id="hint-box"></div>
           <div class="answer-row">
-            <input type="text" id="answer-input" placeholder="Type your answer here..." onkeydown="if(event.key==='Enter'){ if(inFeedbackState) nextQuestion(); else submitAnswer(); }"/>
+            <input type="text" id="answer-input" placeholder="Type your answer here..." autocomplete="on" autocorrect="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter'){ if(inFeedbackState) nextQuestion(); else submitAnswer(); }"/>
           </div>
           <div class="btn-row">
             <button class="btn-sm btn-submit" onclick="submitAnswer()">Submit</button>

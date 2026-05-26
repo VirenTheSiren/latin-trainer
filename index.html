@@ -266,12 +266,18 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // Clear any stale session data from old versions of the site
 (function() {
-  const currentVersion = '4.0';
+  const currentVersion = '5.0';
   if (localStorage.getItem('app_version') !== currentVersion) {
-    const keys = Object.keys(localStorage);
-    keys.forEach(k => { if (k !== 'app_version') localStorage.removeItem(k); });
+    // Full wipe of all storage
+    localStorage.clear();
     sessionStorage.clear();
+    // Wipe all cookies for this domain
+    document.cookie.split(';').forEach(c => {
+      document.cookie = c.trim().split('=')[0] + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/';
+    });
     localStorage.setItem('app_version', currentVersion);
+    // Force reload after wipe so Supabase starts completely fresh
+    window.location.reload();
   }
 })();
 

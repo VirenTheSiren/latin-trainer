@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Latin Trainer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f0f1a;color:#e8e8f0;min-height:100vh}
+.hidden{display:none!important}
+/* AUTH */
+#auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.auth-box{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;padding:40px;width:100%;max-width:440px}
+.auth-box h1{font-size:26px;color:#c9a96e;text-align:center;margin-bottom:6px}
+.auth-box p.sub{text-align:center;color:#888;margin-bottom:24px;font-size:13px}
+.tabs{display:flex;margin-bottom:22px;border-radius:8px;overflow:hidden;border:1px solid #2a2a4a}
+.tabs button{flex:1;padding:10px;background:transparent;border:none;color:#888;cursor:pointer;font-size:14px}
+.tabs button.active{background:#c9a96e;color:#0f0f1a;font-weight:700}
+label{display:block;font-size:13px;color:#aaa;margin-bottom:4px;margin-top:12px}
+input,select{width:100%;padding:10px 14px;background:#0f0f1a;border:1px solid #2a2a4a;border-radius:8px;color:#e8e8f0;font-size:14px;outline:none}
+input:focus,select:focus{border-color:#c9a96e}
+.class-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.class-preview{margin-top:8px;padding:8px 12px;border-radius:8px;font-size:13px;display:none;border:1px solid;font-weight:600}
+.btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin-top:16px}
+.btn-gold{background:#c9a96e;color:#0f0f1a}
+.btn-gold:hover{background:#e0c080}
+.msg{margin-top:12px;padding:10px;border-radius:8px;font-size:13px;text-align:center}
+.msg.error{background:#ff444420;border:1px solid #ff4444;color:#ff8888}
+.msg.success{background:#44ff6620;border:1px solid #44ff66;color:#88ffaa}
+.disclaimer{font-size:11px;color:#555;text-align:center;margin-top:18px;line-height:1.5}
+/* APP */
+#app{display:none;flex-direction:column;min-height:100vh}
+nav{background:#1a1a2e;border-bottom:1px solid #2a2a4a;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+nav .logo{font-size:16px;font-weight:700;color:#c9a96e}
+nav .nav-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+nav .user-name{font-size:12px;color:#888}
+.nav-class-pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;border:1px solid}
+nav button{padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #2a2a4a;background:transparent;color:#ccc}
+nav button:hover,nav button.active-nav{border-color:#c9a96e;color:#c9a96e;background:#c9a96e15}
+main{flex:1;padding:20px;max-width:900px;margin:0 auto;width:100%}
+/* CHAPTERS */
+#chapter-screen h2{color:#c9a96e;margin-bottom:6px}
+#chapter-screen p.desc{color:#888;font-size:13px;margin-bottom:18px}
+.chapter-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:18px}
+.ch-btn{padding:14px 8px;border-radius:10px;border:2px solid #2a2a4a;background:#1a1a2e;color:#ccc;cursor:pointer;font-size:13px;font-weight:600;text-align:center;transition:all .2s}
+.ch-btn.selected{border-color:#c9a96e;background:#c9a96e20;color:#c9a96e}
+.ch-btn:hover{border-color:#c9a96e60}
+/* TRAINER */
+.dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:12px;padding:14px;text-align:center}
+.stat-card .val{font-size:26px;font-weight:700;color:#c9a96e}
+.stat-card .lbl{font-size:11px;color:#888;margin-top:3px}
+.adaptive-box{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:10px;padding:12px;margin-bottom:18px;font-size:13px;color:#aaa;line-height:1.5}
+.adaptive-box b{color:#c9a96e}
+.question-card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:14px;padding:24px;margin-bottom:14px}
+.q-meta{font-size:11px;color:#666;margin-bottom:8px;display:flex;gap:10px}
+.q-meta span{background:#0f0f1a;padding:3px 8px;border-radius:5px}
+.q-word{font-size:34px;font-weight:700;color:#e8e8f0;margin-bottom:4px}
+.q-dir{font-size:13px;color:#888;margin-bottom:18px}
+.hint-box{background:#2a2a1a;border:1px solid #c9a96e40;border-radius:8px;padding:10px;margin-bottom:14px;font-size:13px;color:#c9a96e;display:none}
+.answer-row{display:flex;gap:8px;margin-bottom:12px}
+.answer-row input{flex:1;padding:11px 14px;background:#0f0f1a;border:2px solid #2a2a4a;border-radius:9px;color:#e8e8f0;font-size:15px;outline:none}
+.answer-row input:focus{border-color:#c9a96e}
+.btn-row{display:flex;gap:8px}
+.btn-sm{padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none}
+.btn-submit{background:#c9a96e;color:#0f0f1a;flex:1}
+.btn-submit:hover{background:#e0c080}
+.btn-hint{background:#2a2a4a;color:#c9a96e;border:1px solid #c9a96e40}
+.btn-skip{background:#2a2a4a;color:#888}
+.feedback-card{border-radius:12px;padding:18px;margin-bottom:14px;border:2px solid}
+.feedback-card.correct{background:#44ff6615;border-color:#44ff66;color:#88ffaa}
+.feedback-card.partial{background:#ffaa4415;border-color:#ffaa44;color:#ffcc88}
+.feedback-card.wrong{background:#ff444415;border-color:#ff4444;color:#ff8888}
+.feedback-card h3{font-size:15px;margin-bottom:5px}
+.feedback-card p{font-size:13px;opacity:.9;line-height:1.5}
+.marks-badge{float:right;font-size:18px;font-weight:700}
+/* LEADERBOARD */
+#score-screen h2,#teacher-screen h2{color:#c9a96e;margin-bottom:18px}
+.lb-controls{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.lb-label{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;font-weight:600}
+.lb-tab-group{display:flex;gap:6px;flex-wrap:wrap}
+.lb-tab{padding:7px 14px;border-radius:7px;border:1px solid #2a2a4a;background:transparent;color:#888;cursor:pointer;font-size:13px;transition:all .15s;font-weight:500}
+.lb-tab:hover:not(.active){border-color:#c9a96e60;color:#c9a96e}
+.lb-tab.active{background:#c9a96e;color:#0f0f1a;border-color:#c9a96e;font-weight:700}
+.lb-tab.class-active{font-weight:700}
+/* class battle */
+.battle-section{margin-bottom:22px}
+.battle-title{font-size:14px;font-weight:700;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.battle-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.battle-card{border:2px solid;border-radius:12px;padding:14px;text-align:center;transition:transform .15s}
+.battle-card:hover{transform:translateY(-2px)}
+.battle-card .bc-name{font-size:13px;font-weight:700;margin-bottom:4px}
+.battle-card .bc-num{font-size:28px;font-weight:700;margin:4px 0}
+.battle-card .bc-sub{font-size:11px;color:#888;line-height:1.5}
+.lb-meta{font-size:12px;color:#666;margin-bottom:12px;padding:6px 10px;background:#1a1a2e;border-radius:6px;display:inline-block}
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#1a1a2e;padding:9px 11px;text-align:left;color:#888;font-weight:600;border-bottom:2px solid #2a2a4a}
+td{padding:9px 11px;border-bottom:1px solid #2a2a4a;color:#ccc;vertical-align:middle}
+tr:hover td{background:#1a1a2e60}
+.me-row td{background:#c9a96e08!important}
+.rank-gold{color:#FFD700;font-weight:700}
+.rank-silver{color:#C0C0C0;font-weight:700}
+.rank-bronze{color:#CD7F32;font-weight:700}
+/* TEACHER */
+.t-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.t-stat{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:12px;padding:16px;text-align:center}
+.t-stat .v{font-size:28px;font-weight:700;color:#c9a96e}
+.t-stat .l{font-size:11px;color:#888;margin-top:4px}
+.badge{padding:2px 7px;border-radius:5px;font-size:11px;font-weight:600}
+.bg{background:#44ff6630;color:#44ff66}
+.bo{background:#ffaa4430;color:#ffaa44}
+.br{background:#ff444430;color:#ff4444}
+.sec-title{font-size:16px;font-weight:700;color:#c9a96e;margin:22px 0 10px}
+.export-btn{padding:8px 16px;background:#1a1a2e;border:1px solid #c9a96e;color:#c9a96e;border-radius:7px;cursor:pointer;font-size:13px;margin-bottom:12px;float:right}
+.export-btn:hover{background:#c9a96e20}
+.t-filter-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.t-filter-row .lb-label{margin:0}
+/* class pill inline */
+.cpill{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;border:1px solid;white-space:nowrap}
+@media(max-width:580px){.q-word{font-size:24px}.btn-row{flex-wrap:wrap}.answer-row{flex-direction:column}.class-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <h1>🏛️ Latin Trainer</h1>
+    <p class="sub">Latin Vocabulary Practice</p>
+    <div class="tabs">
+      <button class="active" id="tab-login" onclick="switchTab('login')">Login</button>
+      <button id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
+    </div>
+    <div id="login-form">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="your@email.com" onkeydown="if(event.key==='Enter')doLogin()"/>
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"/>
+      <button class="btn btn-gold" onclick="doLogin()">Login</button>
+    </div>
+    <div id="signup-form" class="hidden">
+      <label>Full Name</label>
+      <input type="text" id="signup-name" placeholder="e.g. John Smith"/>
+      <label>Email</label>
+      <input type="email" id="signup-email" placeholder="your@email.com"/>
+      <label>Password</label>
+      <input type="password" id="signup-password" placeholder="At least 6 characters"/>
+      <label>Select Your Class</label>
+      <div class="class-row">
+        <select id="signup-year-sel" onchange="updateClassPreview()">
+          <option value="">Year...</option>
+          <option value="7">Year 7</option>
+          <option value="8">Year 8</option>
+          <option value="9">Year 9</option>
+          <option value="10">Year 10</option>
+          <option value="11">Year 11</option>
+          <option value="12">Year 12</option>
+          <option value="13">Year 13</option>
+        </select>
+        <select id="signup-class-sel" onchange="updateClassPreview()">
+          <option value="">Class...</option>
+          <option value="B">Brecon</option>
+          <option value="C">Camberwell</option>
+          <option value="D">Datchelor</option>
+          <option value="G">Greencoat</option>
+          <option value="H">Hayes</option>
+          <option value="S">Southwark</option>
+        </select>
+      </div>
+      <div class="class-preview" id="class-preview"></div>
+      <button class="btn btn-gold" onclick="doSignup()">Create Account</button>
+    </div>
+    <div id="auth-msg" class="msg hidden"></div>
+    <p class="disclaimer">⚠️ AI Disclaimer: Parts of this application were designed and built with the assistance of AI tools including large language models. Latin vocabulary is sourced from the Suburani textbook series. For educational use only.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <nav>
+    <div class="logo">🏛️ Latin Trainer</div>
+    <div class="nav-right">
+      <span class="user-name" id="nav-user"></span>
+      <span id="nav-class-pill"></span>
+      <button onclick="showScreen('chapter')" id="nav-chapters" class="active-nav">Chapters</button>
+      <button onclick="showScreen('trainer')" id="nav-train">Practice</button>
+      <button onclick="showScreen('score')" id="nav-score">Leaderboard</button>
+      <button onclick="showScreen('teacher')" id="nav-teacher" class="hidden">Teacher</button>
+      <button onclick="doLogout()">Logout</button>
+    </div>
+  </nav>
+  <main>
+
+    <!-- CHAPTERS -->
+    <div id="chapter-screen">
+      <h2>Choose Your Chapters</h2>
+      <p class="desc">Select which chapters you want to practise. You can change this at any time.</p>
+      <div class="chapter-grid" id="chapter-grid"></div>
+      <button class="btn btn-gold" style="max-width:260px" onclick="saveChapters()">Save &amp; Start Practising</button>
+    </div>
+
+    <!-- TRAINER -->
+    <div id="trainer-screen" class="hidden">
+      <div class="dashboard">
+        <div class="stat-card"><div class="val" id="stat-score">0</div><div class="lbl">Total Score</div></div>
+        <div class="stat-card"><div class="val" id="stat-possible">0</div><div class="lbl">Possible Marks</div></div>
+        <div class="stat-card"><div class="val" id="stat-streak">0</div><div class="lbl">Streak</div></div>
+        <div class="stat-card"><div class="val" id="stat-pct">0%</div><div class="lbl">Accuracy</div></div>
+      </div>
+      <div class="adaptive-box" id="adaptive-msg"><b>Adaptive Engine:</b> Loading your personalised question mix...</div>
+      <div id="question-area">
+        <div class="question-card" id="q-card">
+          <div class="q-meta"><span id="q-chapter"></span><span id="q-pos"></span></div>
+          <div class="q-word" id="q-word"></div>
+          <div class="q-dir" id="q-dir"></div>
+          <div class="hint-box" id="hint-box"></div>
+          <div class="answer-row">
+            <input type="text" id="answer-input" placeholder="Type your answer here..." onkeydown="if(event.key==='Enter')submitAnswer()"/>
+          </div>
+          <div class="btn-row">
+            <button class="btn-sm btn-submit" onclick="submitAnswer()">Submit</button>
+            <button class="btn-sm btn-hint" onclick="showHint()">Hint (-0.5)</button>
+            <button class="btn-sm btn-skip" onclick="skipQuestion()">Skip</button>
+          </div>
+        </div>
+        <div id="feedback-area"></div>
+      </div>
+    </div>
+
+    <!-- LEADERBOARD -->
+    <div id="score-screen" class="hidden">
+      <h2>🏆 Leaderboard</h2>
+      <div id="lb-controls" class="lb-controls"></div>
+      <div id="score-content"></div>
+    </div>
+
+    <!-- TEACHER -->
+    <div id="teacher-screen" class="hidden">
+      <h2>👩‍🏫 Teacher Dashboard</h2>
+      <div class="t-grid" id="t-overview"></div>
+      <div class="sec-title">Class Overview</div>
+      <div id="t-class-overview"></div>
+      <div class="sec-title" style="margin-top:24px">Student Performance</div>
+      <div class="t-filter-row">
+        <span class="lb-label">Filter:</span>
+        <div class="lb-tab-group" id="t-class-filter"></div>
+      </div>
+      <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+      <div id="t-table-wrap"><p style="color:#888">Loading...</p></div>
+      <div class="sec-title">Most Missed Words</div>
+      <div id="t-missed-wrap"><p style="color:#888">Loading...</p></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://lraszpathhkfkvibudcw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxyYXN6cGF0aGhrZmt2aWJ1ZGN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0Njg5ODQsImV4cCI6MjA5NTA0NDk4NH0.ngyTPlnI86alTCPpH9TmOxXUXm5cTQwY0PCJ3Q9k4x8';
+
+// Clear any stale session data from old versions of the site
+(function() {
+  const currentVersion = '2.0';
+  if (localStorage.getItem('app_version') !== currentVersion) {
+    const keys = Object.keys(localStorage);
+    keys.forEach(k => { if (k !== 'app_version') localStorage.removeItem(k); });
+    sessionStorage.clear();
+    localStorage.setItem('app_version', currentVersion);
+  }
+})();
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── CLASS SYSTEM ──────────────────────────────────────────
+const CLASS_META = {
+  B: {name:'Brecon',     color:'#e74c3c'},
+  C: {name:'Camberwell', color:'#3498db'},
+  D: {name:'Datchelor',  color:'#e67e22'},
+  G: {name:'Greencoat',  color:'#27ae60'},
+  H: {name:'Hayes',      color:'#d4ac0d'},
+  S: {name:'Southwark',  color:'#8e44ad'},
+};
+
+function parseCode(code) {
+  if (!code) return null;
+  const m = code.match(/^LATIN(\d+)([BCDGHS])$/i);
+  if (!m) return null;
+  const init = m[2].toUpperCase();
+  return { code, year: m[1], initial: init, ...CLASS_META[init] };
+}
+
+function cpill(code) {
+  const info = parseCode(code);
+  if (!info) return `<span style="color:#888">${code||'—'}</span>`;
+  return `<span class="cpill" style="color:${info.color};border-color:${info.color}60;background:${info.color}18">${info.name} Y${info.year}</span>`;
+}
+
+function updateClassPreview() {
+  const y = document.getElementById('signup-year-sel').value;
+  const c = document.getElementById('signup-class-sel').value;
+  const prev = document.getElementById('class-preview');
+  if (y && c) {
+    const code = `LATIN${y}${c}`;
+    const info = CLASS_META[c];
+    prev.innerHTML = `✓ Your class: <b>${info.name} Year ${y}</b> &nbsp;·&nbsp; Code: <b>${code}</b>`;
+    prev.style.display = 'block';
+    prev.style.color = info.color;
+    prev.style.borderColor = info.color + '60';
+    prev.style.background = info.color + '15';
+  } else {
+    prev.style.display = 'none';
+  }
+}
+
+// ── STATE ─────────────────────────────────────────────────
+let currentUser = null, currentProfile = null;
+let vocab = [], selectedChapters = [], currentQ = null;
+let hintUsed = false, totalScore = 0, totalPossible = 0, streak = 0;
+let wordStats = {};
+let lbPeriod = 'week', lbScope = 'class', teacherClassFilter = 'all';
+
+// ── AUTH ──────────────────────────────────────────────────
+function switchTab(t) {
+  document.getElementById('login-form').classList.toggle('hidden', t !== 'login');
+  document.getElementById('signup-form').classList.toggle('hidden', t !== 'signup');
+  document.getElementById('tab-login').classList.toggle('active', t === 'login');
+  document.getElementById('tab-signup').classList.toggle('active', t === 'signup');
+}
+function showAuthMsg(msg, type) {
+  const el = document.getElementById('auth-msg');
+  el.textContent = msg; el.className = 'msg ' + type; el.classList.remove('hidden');
+}
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-password').value;
+  if (!email || !pass) { showAuthMsg('Please fill in all fields', 'error'); return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) showAuthMsg(error.message, 'error');
+}
+async function doSignup() {
+  const name = document.getElementById('signup-name').value.trim();
+  const email = document.getElementById('signup-email').value.trim();
+  const pass  = document.getElementById('signup-password').value;
+  const y = document.getElementById('signup-year-sel').value;
+  const c = document.getElementById('signup-class-sel').value;
+  if (!name || !email || !pass) { showAuthMsg('Please fill in all fields', 'error'); return; }
+  if (!y || !c) { showAuthMsg('Please select your year and class', 'error'); return; }
+  const cls = `LATIN${y}${c}`;
+  const { error } = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { full_name: name, role: 'student', class_code: cls, year_group: `Year ${y}` } }
+  });
+  if (error) showAuthMsg(error.message, 'error');
+  else showAuthMsg('Account created! Please check your email to confirm, then log in.', 'success');
+}
+async function doLogout() { await sb.auth.signOut(); location.reload(); }
+
+// ── SESSION ───────────────────────────────────────────────
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session) {
+    try {
+      currentUser = session.user;
+      await loadProfile();
+      await loadVocab();
+      await loadWordStats();
+      showApp();
+    } catch(err) {
+      console.error('App load error:', err);
+      document.getElementById('auth-msg').textContent = 'Error loading app: ' + err.message;
+      document.getElementById('auth-msg').className = 'msg error';
+      document.getElementById('auth-msg').classList.remove('hidden');
+      document.getElementById('auth-screen').style.display = 'flex';
+    }
+  }
+});
+
+async function loadProfile() {
+  const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+  currentProfile = data;
+}
+async function loadVocab() {
+  const { data } = await sb.from('vocabulary').select('*').order('chapter');
+  vocab = data || [];
+}
+async function loadWordStats() {
+  const { data } = await sb.from('word_performance').select('*').eq('student_id', currentUser.id);
+  if (data) data.forEach(r => { wordStats[r.vocab_id] = r; });
+}
+
+// ── SHOW APP ──────────────────────────────────────────────
+async function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  const name = currentProfile?.full_name || currentUser.email;
+  document.getElementById('nav-user').textContent = name;
+
+  // Class pill in nav
+  const info = parseCode(currentProfile?.class_code);
+  if (info) {
+    document.getElementById('nav-class-pill').innerHTML =
+      `<span class="nav-class-pill" style="color:${info.color};border-color:${info.color}60;background:${info.color}18">${info.name} Y${info.year}</span>`;
+  }
+
+  if (currentProfile?.role === 'teacher') {
+    document.getElementById('nav-teacher').classList.remove('hidden');
+    buildLbControls(); // teacher variant
+    showScreen('teacher');
+  } else {
+    const { data } = await sb.from('chapter_selections').select('selected_chapters').eq('student_id', currentUser.id).maybeSingle();
+    selectedChapters = data?.selected_chapters || [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+    await loadStreak();
+    buildChapterGrid();
+    buildLbControls(); // student variant
+    showScreen('chapter');
+  }
+}
+
+function showScreen(s) {
+  ['chapter-screen','trainer-screen','score-screen','teacher-screen'].forEach(id => {
+    document.getElementById(id).classList.toggle('hidden', id !== s + '-screen');
+  });
+  ['nav-chapters','nav-train','nav-score','nav-teacher'].forEach(id => {
+    document.getElementById(id)?.classList.remove('active-nav');
+  });
+  const map = { chapter:'nav-chapters', trainer:'nav-train', score:'nav-score', teacher:'nav-teacher' };
+  if (map[s]) document.getElementById(map[s])?.classList.add('active-nav');
+  if (s === 'trainer') nextQuestion();
+  if (s === 'score')   loadScoreboard();
+  if (s === 'teacher') loadTeacherDashboard();
+}
+
+// ── LEADERBOARD CONTROLS (built dynamically) ──────────────
+function buildLbControls() {
+  const isTeacher = currentProfile?.role === 'teacher';
+  const info = parseCode(currentProfile?.class_code);
+  const periodHtml = `
+    <div>
+      <div class="lb-label">Time Period</div>
+      <div class="lb-tab-group">
+        <button class="lb-tab period-btn active" onclick="setLbPeriod('week',this)">This Week</button>
+        <button class="lb-tab period-btn" onclick="setLbPeriod('month',this)">This Month</button>
+        <button class="lb-tab period-btn" onclick="setLbPeriod('year',this)">This Year</button>
+        <button class="lb-tab period-btn" onclick="setLbPeriod('alltime',this)">All Time</button>
+      </div>
+    </div>`;
+
+  let scopeHtml = '';
+  if (isTeacher) {
+    // Teachers: filter by specific class or year group
+    let classBtns = `<button class="lb-tab class-filter-btn active" onclick="setTeacherClass('all',this)" data-code="all">All Classes</button>`;
+    ['7','8','9','10','11','12','13'].forEach(yr => {
+      Object.entries(CLASS_META).forEach(([k,v]) => {
+        const code = `LATIN${yr}${k}`;
+        classBtns += `<button class="lb-tab class-filter-btn" onclick="setTeacherClass('${code}',this)" data-code="${code}"
+          style="border-color:${v.color}50;color:${v.color}">${v.name} Y${yr}</button>`;
+      });
+    });
+    scopeHtml = `<div><div class="lb-label">Filter by Class</div><div class="lb-tab-group" style="max-height:120px;overflow-y:auto">${classBtns}</div></div>`;
+    lbScope = 'school';
+  } else {
+    // Students: My Class / My Year / Whole School
+    let btns = '';
+    if (info) {
+      btns += `<button class="lb-tab scope-btn active" onclick="setLbScope('class',this)" style="border-color:${info.color}60;color:${info.color};background:${info.color}18">
+        ${info.name} Y${info.year} (My Class)</button>`;
+      btns += `<button class="lb-tab scope-btn" onclick="setLbScope('year',this)">Year ${info.year} (All)</button>`;
+    }
+    btns += `<button class="lb-tab scope-btn${!info?' active':''}" onclick="setLbScope('school',this)">Whole School</button>`;
+    scopeHtml = `<div><div class="lb-label">Scope</div><div class="lb-tab-group">${btns}</div></div>`;
+    lbScope = info ? 'class' : 'school';
+  }
+
+  document.getElementById('lb-controls').innerHTML = scopeHtml + periodHtml;
+}
+
+function setLbScope(scope, btn) {
+  lbScope = scope;
+  document.querySelectorAll('.scope-btn').forEach(b => {
+    b.classList.remove('active');
+    const info2 = parseCode(currentProfile?.class_code);
+    if (info2 && b.textContent.includes('My Class')) { b.style.background = ''; }
+  });
+  btn.classList.add('active');
+  loadScoreboard();
+}
+function setLbPeriod(period, btn) {
+  lbPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadScoreboard();
+}
+function setTeacherClass(code, btn) {
+  teacherClassFilter = code;
+  document.querySelectorAll('.class-filter-btn').forEach(b => {
+    b.classList.remove('active');
+    b.style.background = '';
+    // restore original text color from data
+    const c = b.dataset.code;
+    const ci = parseCode(c);
+    if (ci) b.style.color = ci.color;
+    else b.style.color = '';
+  });
+  btn.classList.add('active');
+  const ci = parseCode(code);
+  if (ci) { btn.style.background = ci.color + '25'; btn.style.color = ci.color; }
+  else { btn.style.background = '#c9a96e'; btn.style.color = '#0f0f1a'; }
+  loadScoreboard();
+}
+
+// ── LEADERBOARD DATA ──────────────────────────────────────
+async function loadScoreboard() {
+  const wrap = document.getElementById('score-content');
+  wrap.innerHTML = '<p style="color:#888;padding:10px">Loading...</p>';
+
+  const isTeacher = currentProfile?.role === 'teacher';
+
+  // Date cutoff
+  let since = null;
+  const now = new Date();
+  if (lbPeriod === 'week')  { const d = new Date(); d.setDate(d.getDate()-7); since = d.toISOString(); }
+  if (lbPeriod === 'month') since = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  if (lbPeriod === 'year')  since = new Date(now.getFullYear(), 0, 1).toISOString();
+
+  // Build student query
+  let q = sb.from('profiles').select('id,full_name,class_code,year_group').eq('role','student');
+  if (isTeacher) {
+    if (teacherClassFilter !== 'all') q = q.eq('class_code', teacherClassFilter);
+  } else {
+    const myInfo = parseCode(currentProfile?.class_code);
+    if (lbScope === 'class' && currentProfile?.class_code) {
+      q = q.eq('class_code', currentProfile.class_code);
+    } else if (lbScope === 'year' && myInfo?.year) {
+      q = q.like('class_code', `LATIN${myInfo.year}%`);
+    }
+  }
+
+  const { data: students } = await q;
+  if (!students?.length) {
+    wrap.innerHTML = '<p style="color:#888;padding:10px">No students found in this group yet.</p>';
+    return;
+  }
+
+  const ids = students.map(s => s.id);
+  let aq = sb.from('attempts').select('student_id,marks_awarded,marks_possible').in('student_id', ids);
+  if (since) aq = aq.gte('attempted_at', since);
+  const { data: atts } = await aq;
+
+  // Aggregate per student
+  const smap = {};
+  students.forEach(s => { smap[s.id] = { id:s.id, name:s.full_name||'Student', code:s.class_code, words:0, score:0, possible:0 }; });
+  (atts||[]).forEach(r => {
+    if (smap[r.student_id]) {
+      smap[r.student_id].words++;
+      smap[r.student_id].score   += Number(r.marks_awarded||0);
+      smap[r.student_id].possible += Number(r.marks_possible||0);
+    }
+  });
+
+  const rows = Object.values(smap).sort((a,b) => b.words - a.words);
+  const periodLabel = {week:'This Week',month:'This Month',year:'This Year',alltime:'All Time'}[lbPeriod];
+
+  let html = '';
+
+  // Class battle — show when seeing multiple classes
+  const showBattle = isTeacher || lbScope === 'year' || lbScope === 'school';
+  if (showBattle) {
+    const classAgg = {};
+    students.forEach(s => {
+      if (!s.class_code) return;
+      if (!classAgg[s.class_code]) classAgg[s.class_code] = { info: parseCode(s.class_code), words:0, score:0, possible:0, count:0 };
+      classAgg[s.class_code].count++;
+    });
+    const sidToCode = {};
+    students.forEach(s => { if (s.class_code) sidToCode[s.id] = s.class_code; });
+    (atts||[]).forEach(r => {
+      const cc = sidToCode[r.student_id];
+      if (cc && classAgg[cc]) {
+        classAgg[cc].words++;
+        classAgg[cc].score   += Number(r.marks_awarded||0);
+        classAgg[cc].possible += Number(r.marks_possible||0);
+      }
+    });
+    const classSorted = Object.values(classAgg).filter(c=>c.info).sort((a,b)=>b.words-a.words);
+    if (classSorted.length > 1) {
+      const medalEmoji = ['🥇','🥈','🥉'];
+      html += `<div class="battle-section"><div class="battle-title">⚔️ Class Battle — ${periodLabel}</div><div class="battle-grid">`;
+      classSorted.forEach((c,i) => {
+        const pct = c.possible > 0 ? Math.round((c.score/c.possible)*100) : 0;
+        html += `<div class="battle-card" style="border-color:${c.info.color};background:${c.info.color}12">
+          <div class="bc-name" style="color:${c.info.color}">${medalEmoji[i]||'·'} ${c.info.name} Y${c.info.year}</div>
+          <div class="bc-num" style="color:${c.info.color}">${c.words}</div>
+          <div class="bc-sub">${c.count} students · ${pct}% acc</div>
+        </div>`;
+      });
+      html += '</div></div>';
+    }
+  }
+
+  // Individual table
+  const medals = ['rank-gold','rank-silver','rank-bronze'];
+  const showClassCol = isTeacher || lbScope === 'year' || lbScope === 'school';
+  html += `<div class="lb-meta">📊 ${periodLabel}</div>`;
+  html += `<table><thead><tr><th>#</th><th>Student</th>${showClassCol?'<th>Class</th>':''}<th>Words Done</th><th>Score</th><th>Accuracy</th></tr></thead><tbody>`;
+  rows.forEach((r,i) => {
+    const pct = r.possible > 0 ? Math.round((r.score/r.possible)*100) : 0;
+    const cls = i < 3 ? medals[i] : '';
+    const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
+    const isMe = r.id === currentUser?.id;
+    html += `<tr${isMe?' class="me-row"':''}><td class="${cls}">${medal}</td>
+      <td class="${cls}">${r.name}${isMe?' ⭐':''}</td>
+      ${showClassCol?`<td>${cpill(r.code)}</td>`:''}
+      <td><b>${r.words}</b></td><td>${r.score.toFixed(1)}</td><td>${pct}%</td></tr>`;
+  });
+  html += '</tbody></table>';
+  if (!rows.some(r=>r.words>0)) {
+    html += '<p style="color:#888;font-size:13px;margin-top:12px">No activity in this period yet — start practising!</p>';
+  }
+  wrap.innerHTML = html;
+}
+
+// ── CHAPTERS ──────────────────────────────────────────────
+function buildChapterGrid() {
+  const grid = document.getElementById('chapter-grid');
+  grid.innerHTML = '';
+  const chapters = [...new Set(vocab.map(v=>v.chapter))].sort((a,b)=>a-b);
+  chapters.forEach(ch => {
+    const btn = document.createElement('button');
+    btn.className = 'ch-btn' + (selectedChapters.includes(ch) ? ' selected' : '');
+    btn.innerHTML = `Chapter ${ch}<br><small style="font-weight:400;color:#888">${vocab.filter(v=>v.chapter===ch).length} words</small>`;
+    btn.onclick = () => {
+      if (selectedChapters.includes(ch)) selectedChapters = selectedChapters.filter(c=>c!==ch);
+      else selectedChapters.push(ch);
+      btn.classList.toggle('selected');
+    };
+    grid.appendChild(btn);
+  });
+}
+async function saveChapters() {
+  if (!selectedChapters.length) { alert('Please select at least one chapter.'); return; }
+  await sb.from('chapter_selections').upsert({ student_id:currentUser.id, selected_chapters:selectedChapters, updated_at:new Date().toISOString() });
+  showScreen('trainer');
+}
+
+// ── STREAK ────────────────────────────────────────────────
+async function loadStreak() {
+  const { data } = await sb.from('streaks').select('*').eq('student_id', currentUser.id).maybeSingle();
+  streak = data?.current_streak || 0;
+}
+async function updateStreak(correct) {
+  streak = correct ? streak + 1 : 0;
+  document.getElementById('stat-streak').textContent = streak;
+  await sb.from('streaks').upsert({ student_id:currentUser.id, current_streak:streak, updated_at:new Date().toISOString() });
+}
+
+// ── ADAPTIVE ENGINE ───────────────────────────────────────
+function pickNextWord() {
+  const pool = vocab.filter(v=>selectedChapters.includes(v.chapter));
+  if (!pool.length) return null;
+  const weighted = [];
+  pool.forEach(v => {
+    const acc = wordStats[v.id]?.accuracy ?? 50;
+    const w = Math.max(1, Math.round((100-acc)/10));
+    for (let i=0;i<w;i++) weighted.push(v);
+  });
+  return weighted[Math.floor(Math.random()*weighted.length)];
+}
+function updateAdaptiveMsg() {
+  const pool = vocab.filter(v=>selectedChapters.includes(v.chapter));
+  const weak = pool.filter(v => wordStats[v.id] && wordStats[v.id].accuracy < 50);
+  document.getElementById('adaptive-msg').innerHTML = '<b>Adaptive Engine:</b> ' +
+    (weak.length > 0
+      ? `Focusing on <b>${weak.length} weak word${weak.length>1?'s':''}</b> — keep going to improve.`
+      : `Good balance across <b>Chapters ${selectedChapters.join(', ')}</b>. Keep it up!`);
+}
+
+// ── QUESTION ──────────────────────────────────────────────
+function nextQuestion() {
+  const word = pickNextWord();
+  if (!word) { document.getElementById('question-area').innerHTML='<p style="color:#888">No vocabulary found.</p>'; return; }
+  const direction = Math.random() < 0.65 ? 'latin_to_english' : 'english_to_latin';
+  currentQ = { word, direction, hintUsed: false };
+  hintUsed = false;
+  document.getElementById('hint-box').style.display = 'none';
+  document.getElementById('answer-input').value = '';
+  document.getElementById('feedback-area').innerHTML = '';
+  document.getElementById('q-chapter').textContent = 'Chapter ' + word.chapter;
+  document.getElementById('q-pos').textContent = word.part_of_speech;
+  if (direction === 'latin_to_english') {
+    document.getElementById('q-word').textContent = word.latin_word;
+    document.getElementById('q-dir').textContent = '→ What does this Latin word mean in English?';
+  } else {
+    document.getElementById('q-word').textContent = word.english_meanings[0];
+    document.getElementById('q-dir').textContent = '→ What is the Latin word for this?';
+  }
+  document.getElementById('answer-input').focus();
+  updateAdaptiveMsg();
+}
+function showHint() {
+  if (hintUsed) return;
+  hintUsed = true; currentQ.hintUsed = true;
+  const box = document.getElementById('hint-box');
+  box.textContent = '💡 Hint: ' + (currentQ.word.hint || 'No hint available for this word yet.');
+  box.style.display = 'block';
+}
+function skipQuestion() {
+  recordAttempt(currentQ.word, currentQ.direction, '', 0, 1, false, true);
+  showFeedback('skip', 0, 1);
+  updateStreak(false);
+  setTimeout(nextQuestion, 1800);
+}
+async function submitAnswer() {
+  const raw = document.getElementById('answer-input').value.trim();
+  if (!raw) return;
+  const { marks, possible, type } = gradeAnswer(raw, currentQ.word, currentQ.direction, currentQ.hintUsed);
+  totalScore += marks; totalPossible += possible;
+  document.getElementById('stat-score').textContent = totalScore.toFixed(1);
+  document.getElementById('stat-possible').textContent = totalPossible.toFixed(1);
+  document.getElementById('stat-pct').textContent = (totalPossible>0?Math.round((totalScore/totalPossible)*100):0)+'%';
+  updateStreak(marks > 0);
+  await recordAttempt(currentQ.word, currentQ.direction, raw, marks, possible, currentQ.hintUsed, false);
+  showFeedback(type, marks, possible);
+  setTimeout(nextQuestion, 2800);
+}
+
+// ── GRADING ───────────────────────────────────────────────
+function normalise(s){ return s.toLowerCase().replace(/[^a-z\s]/g,'').replace(/\b(a|an|to|i|the)\b/g,'').replace(/\s+/g,' ').trim(); }
+function fuzzy(a,b){ a=normalise(a);b=normalise(b);
+  if(a===b) return true;
+  if(b.split(' ').some(w=>w.length>3&&a.includes(w))) return true;
+  if(a.split(' ').some(w=>w.length>3&&b.includes(w))) return true;
+  return false;
+}
+function gradeAnswer(raw, word, direction, hintUsed) {
+  const max = hintUsed ? 0.5 : 1;
+  if (direction === 'latin_to_english') {
+    const matched = word.english_meanings.filter(a=>fuzzy(raw,a));
+    if (matched.length === word.english_meanings.length) return {marks:max,possible:max,type:'correct'};
+    if (matched.length > 0) return {marks:max*0.5,possible:max,type:'partial'};
+    return {marks:0,possible:max,type:'wrong'};
+  } else {
+    return fuzzy(raw,word.latin_word)
+      ? {marks:max,possible:max,type:'correct'}
+      : {marks:0,possible:max,type:'wrong'};
+  }
+}
+function showFeedback(type, marks, possible) {
+  const area = document.getElementById('feedback-area');
+  const answer = currentQ.direction==='latin_to_english'
+    ? currentQ.word.english_meanings.join(', ')
+    : currentQ.word.latin_word;
+  const msgs = {
+    skip:    ['wrong','Skipped — 0 marks',`The answer was: <b>${answer}</b>`],
+    correct: ['correct',`Correct! +${marks} mark${marks!==1?'s':''}`,`Well done! Full answer: <b>${answer}</b>`],
+    partial: ['partial',`Partially correct — +${marks} marks`,`You got some meanings. Full answer: <b>${answer}</b>`],
+    wrong:   ['wrong','Incorrect — 0 marks',`The correct answer was: <b>${answer}</b>`],
+  };
+  const [cls,title,body] = msgs[type];
+  const extra = (currentQ.hintUsed && type!=='skip') ? ' <em>(hint used — max 0.5)</em>' : '';
+  area.innerHTML = `<div class="feedback-card ${cls}"><span class="marks-badge">${marks}/${possible}</span><h3>${title}</h3><p>${body}${extra}</p></div>`;
+}
+
+// ── RECORD ATTEMPT ────────────────────────────────────────
+async function recordAttempt(word, direction, answer, marks, possible, hintUsed, skipped) {
+  try {
+    await sb.from('attempts').insert({
+      student_id:currentUser.id, vocab_id:word.id, direction,
+      student_answer:answer, marks_awarded:marks, marks_possible:possible,
+      hint_used:hintUsed, skipped, attempted_at:new Date().toISOString()
+    });
+    const ex = wordStats[word.id];
+    const na = (ex?.total_attempts||0)+1, nc = (ex?.total_correct||0)+marks;
+    const perf = { student_id:currentUser.id, vocab_id:word.id, total_attempts:na,
+      total_correct:nc, accuracy:Math.round((nc/na)*100), times_seen:(ex?.times_seen||0)+1, last_seen:new Date().toISOString() };
+    await sb.from('word_performance').upsert(perf);
+    wordStats[word.id] = perf;
+  } catch(e){ console.error(e); }
+}
+
+// ── TEACHER DASHBOARD ─────────────────────────────────────
+let tClassFilter = 'all';
+
+async function loadTeacherDashboard() {
+  if (currentProfile?.role !== 'teacher') return;
+
+  // Build class filter buttons
+  const filterWrap = document.getElementById('t-class-filter');
+  let filterHtml = `<button class="lb-tab class-tb active" onclick="setTFilter('all',this)">All Classes</button>`;
+  ['7','8','9','10','11','12','13'].forEach(yr => {
+    Object.entries(CLASS_META).forEach(([k,v]) => {
+      filterHtml += `<button class="lb-tab class-tb" onclick="setTFilter('LATIN${yr}${k}',this)"
+        style="border-color:${v.color}50;color:${v.color}">${v.name} Y${yr}</button>`;
+    });
+  });
+  filterWrap.innerHTML = filterHtml;
+
+  await renderTeacherData();
+}
+
+function setTFilter(code, btn) {
+  tClassFilter = code;
+  document.querySelectorAll('.class-tb').forEach(b => {
+    b.classList.remove('active');
+    const ci = parseCode(b.textContent.match(/LATIN\w+/)?.[0]);
+  });
+  btn.classList.add('active');
+  renderTeacherData();
+}
+
+async function renderTeacherData() {
+  let sq = sb.from('profiles').select('*').eq('role','student');
+  if (tClassFilter !== 'all') sq = sq.eq('class_code', tClassFilter);
+  const { data: students } = await sq;
+
+  const ids = (students||[]).map(s=>s.id);
+  let aq = sb.from('attempts').select('*');
+  if (ids.length) aq = aq.in('student_id', ids);
+  const { data: attempts } = await aq;
+
+  const total = students?.length||0;
+  const natts = attempts?.length||0;
+  const marks = attempts?.reduce((s,r)=>s+Number(r.marks_awarded||0),0)||0;
+  const poss  = attempts?.reduce((s,r)=>s+Number(r.marks_possible||0),0)||0;
+  const acc   = poss>0?Math.round((marks/poss)*100):0;
+
+  document.getElementById('t-overview').innerHTML = `
+    <div class="t-stat"><div class="v">${total}</div><div class="l">Students</div></div>
+    <div class="t-stat"><div class="v">${natts}</div><div class="l">Total Attempts</div></div>
+    <div class="t-stat"><div class="v">${marks.toFixed(1)}</div><div class="l">Marks Awarded</div></div>
+    <div class="t-stat"><div class="v">${acc}%</div><div class="l">Avg Accuracy</div></div>`;
+
+  // Class overview cards (all classes, not filtered)
+  const { data: allStudents } = await sb.from('profiles').select('id,class_code').eq('role','student');
+  const { data: allAtts } = await sb.from('attempts').select('student_id,marks_awarded,marks_possible');
+  const classAgg = {};
+  const sidToCode = {};
+  (allStudents||[]).forEach(s => { if (s.class_code) sidToCode[s.id] = s.class_code; });
+  (allStudents||[]).forEach(s => {
+    if (!s.class_code) return;
+    if (!classAgg[s.class_code]) classAgg[s.class_code] = { info:parseCode(s.class_code), count:0, words:0, score:0, possible:0 };
+    classAgg[s.class_code].count++;
+  });
+  (allAtts||[]).forEach(r => {
+    const cc = sidToCode[r.student_id];
+    if (cc && classAgg[cc]) {
+      classAgg[cc].words++;
+      classAgg[cc].score   += Number(r.marks_awarded||0);
+      classAgg[cc].possible += Number(r.marks_possible||0);
+    }
+  });
+  const classSorted = Object.values(classAgg).filter(c=>c.info).sort((a,b)=>a.info.year-b.info.year||a.info.initial.localeCompare(b.info.initial));
+  let overviewHtml = '<div class="battle-grid">';
+  classSorted.forEach(c => {
+    const pct = c.possible>0?Math.round((c.score/c.possible)*100):0;
+    overviewHtml += `<div class="battle-card" style="border-color:${c.info.color};background:${c.info.color}10;cursor:pointer"
+      onclick="setTFilter('${c.info.code}',document.querySelector('.class-tb[onclick*=\\'${c.info.code}\\']'))">
+      <div class="bc-name" style="color:${c.info.color}">${c.info.name} Y${c.info.year}</div>
+      <div class="bc-num" style="color:${c.info.color}">${c.words}</div>
+      <div class="bc-sub">${c.count} students · ${pct}% acc</div>
+    </div>`;
+  });
+  overviewHtml += '</div>';
+  document.getElementById('t-class-overview').innerHTML = classSorted.length ? overviewHtml : '<p style="color:#888">No class data yet.</p>';
+
+  // Student table
+  if (!students?.length) { document.getElementById('t-table-wrap').innerHTML='<p style="color:#888">No students found.</p>'; }
+  else {
+    const attMap = {};
+    (attempts||[]).forEach(r => {
+      if (!attMap[r.student_id]) attMap[r.student_id]={score:0,possible:0,count:0};
+      attMap[r.student_id].score   += Number(r.marks_awarded||0);
+      attMap[r.student_id].possible += Number(r.marks_possible||0);
+      attMap[r.student_id].count++;
+    });
+    const sorted = [...students].sort((a,b)=>{
+      const ap=attMap[a.id]||{}, bp=attMap[b.id]||{};
+      return (bp.count||0)-(ap.count||0);
+    });
+    let tbl = '<table><thead><tr><th>Name</th><th>Class</th><th>Words Done</th><th>Score</th><th>Accuracy</th><th>Status</th></tr></thead><tbody>';
+    sorted.forEach(s => {
+      const a = attMap[s.id]||{score:0,possible:0,count:0};
+      const pct = a.possible>0?Math.round((a.score/a.possible)*100):0;
+      const badge = pct>=70?'<span class="badge bg">Good</span>':pct>=40?'<span class="badge bo">Developing</span>':'<span class="badge br">Needs Help</span>';
+      tbl += `<tr><td>${s.full_name||'—'}</td><td>${cpill(s.class_code)}</td><td><b>${a.count}</b></td><td>${a.score.toFixed(1)}</td><td>${pct}%</td><td>${badge}</td></tr>`;
+    });
+    tbl += '</tbody></table>';
+    document.getElementById('t-table-wrap').innerHTML = tbl;
+  }
+
+  // Most missed words
+  const { data: wp } = await sb.from('word_performance')
+    .select('vocab_id,accuracy,total_attempts,vocabulary(latin_word,chapter)')
+    .lt('accuracy',50).order('accuracy').limit(15);
+  if (!wp?.length) { document.getElementById('t-missed-wrap').innerHTML='<p style="color:#888">No data yet.</p>'; return; }
+  let mt = '<table><thead><tr><th>Latin Word</th><th>Chapter</th><th>Avg Accuracy</th><th>Attempts</th></tr></thead><tbody>';
+  wp.forEach(r => {
+    mt += `<tr><td><b>${r.vocabulary?.latin_word||'—'}</b></td><td>Ch. ${r.vocabulary?.chapter||'?'}</td><td>${r.accuracy}%</td><td>${r.total_attempts}</td></tr>`;
+  });
+  mt += '</tbody></table>';
+  document.getElementById('t-missed-wrap').innerHTML = mt;
+}
+
+// ── CSV EXPORT ────────────────────────────────────────────
+async function exportCSV() {
+  let sq = sb.from('profiles').select('*').eq('role','student');
+  if (tClassFilter !== 'all') sq = sq.eq('class_code', tClassFilter);
+  const { data: students } = await sq;
+  const { data: attempts }  = await sb.from('attempts').select('*, vocabulary(latin_word,chapter)');
+  if (!attempts) return;
+  const sMap = {};
+  (students||[]).forEach(s=>sMap[s.id]=s);
+  const ids = new Set((students||[]).map(s=>s.id));
+  const rows = [['Student','Email','Class','Words Done','Score','Possible','Accuracy%','Hint Used','Skipped','Date']];
+  // aggregate per student
+  const agg = {};
+  attempts.forEach(r => {
+    if (!ids.has(r.student_id)) return;
+    if (!agg[r.student_id]) agg[r.student_id]={count:0,score:0,possible:0};
+    agg[r.student_id].count++; agg[r.student_id].score+=Number(r.marks_awarded||0); agg[r.student_id].possible+=Number(r.marks_possible||0);
+  });
+  Object.entries(agg).forEach(([id,a]) => {
+    const s = sMap[id]||{};
+    const pct = a.possible>0?Math.round((a.score/a.possible)*100):0;
+    rows.push([s.full_name||'',s.email||'',s.class_code||'',a.count,a.score.toFixed(1),a.possible.toFixed(1),pct+'%','','','']);
+  });
+  const csv = rows.map(r=>r.map(c=>'"'+(c||'').toString().replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = `latin_results_${tClassFilter}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>

@@ -367,15 +367,24 @@ sb.auth.onAuthStateChange(async (event, session) => {
     try {
       currentUser = session.user;
       await loadProfile();
+      // If profile failed to load, sign out cleanly and show login
+      if (!currentProfile) {
+        await sb.auth.signOut();
+        localStorage.clear();
+        sessionStorage.clear();
+        location.reload();
+        return;
+      }
       await loadVocab();
       await loadWordStats();
       showApp();
     } catch(err) {
       console.error('App load error:', err);
-      document.getElementById('auth-msg').textContent = 'Error loading app: ' + err.message;
-      document.getElementById('auth-msg').className = 'msg error';
-      document.getElementById('auth-msg').classList.remove('hidden');
-      document.getElementById('auth-screen').style.display = 'flex';
+      // Auto-recover: sign out and reload rather than silently failing
+      try { await sb.auth.signOut(); } catch(e) {}
+      localStorage.clear();
+      sessionStorage.clear();
+      location.reload();
     }
   }
 });
